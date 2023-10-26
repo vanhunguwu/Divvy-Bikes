@@ -1,0 +1,176 @@
+```sql
+/*Create a table combine of data of 4 files , without longtitude and lattitude */
+SELECT [rideable_type],
+       [ride_id],
+       [started_at],
+       [ended_at],
+       [hour],
+       [weekday],
+       [ride_length],
+       [start_station_id],
+       [end_station_id],
+       [member_casual]
+INTO [dbo].[CombinedTripData]
+FROM [dbo].[tripdata-01_23]
+
+UNION ALL
+
+SELECT [rideable_type],
+       [ride_id],
+       [started_at],
+       [ended_at],
+       [hour],
+       [weekday],
+       [ride_length],
+       [start_station_id],
+       [end_station_id],
+       [member_casual]
+FROM [dbo].[tripdata-02_23]
+
+UNION ALL
+
+SELECT[rideable_type],
+       [ride_id],
+       [started_at],
+       [ended_at],
+       [hour],
+       [weekday],
+       [ride_length],
+       [start_station_id],
+       [end_station_id],
+   
+       [member_casual]
+FROM [dbo].[tripdata-03_23]
+
+UNION ALL
+
+SELECT [rideable_type],
+       [ride_id],
+       [started_at],
+       [ended_at],
+       [hour],
+       [weekday],
+       [ride_length],
+       [start_station_id],
+       [end_station_id],
+       [member_casual]
+FROM [dbo].[tripdata-04_23]
+```
+
+```sql
+/*count **Frequency of Rides**:*/
+SELECT
+    member_casual,
+    COUNT(*) AS ride_count,
+    (COUNT(*) * 100.0) / SUM(COUNT(*)) OVER () AS ride_percentage
+FROM [dbo].[CombinedTripData]
+GROUP BY member_casual;
+```
+
+```sql
+/*calculate the average number of ride length and total ride length in seconds*/
+SELECT
+member_casual AS rider_type,
+COUNT(*) AS total_ride_count,
+AVG(DATEDIFF(SECOND, '00:00:00', ride_length)) AS avg_ride_length_seconds,
+SUM(DATEDIFF(SECOND, '00:00:00', ride_length)) AS total_ride_length_seconds
+FROM [dbo].[CombinedTripData]
+GROUP BY member_casual;
+```
+
+```sql
+/*analyze the distribution of rides between casual and member rider thru out the day**/
+WITH MemberRideCounts AS (
+    SELECT
+        COUNT(*) AS total_ride_count
+    FROM [dbo].[CombinedTripData]
+    WHERE member_casual = 'member'
+)
+
+SELECT
+    member_casual AS rider_type,
+    hour AS ride_start_hour,
+    COUNT(*) AS ride_count,
+    (COUNT(*) * 100.0 / (SELECT total_ride_count FROM MemberRideCounts)) AS ride_percentage
+FROM [dbo].[CombinedTripData]
+WHERE member_casual = 'member'
+GROUP BY
+    member_casual,
+    hour
+ORDER BY
+    ride_count DESC,
+    member_casual,
+    ride_start_hour;
+```
+
+```sql
+/*analyze the distribution of rides between casual and member rider thru out the week**/
+SELECT
+member_casual AS rider_type,
+weekday AS ride_start_weekday,
+COUNT(*) AS ride_count
+FROM [dbo].[CombinedTripData]
+GROUP BY
+member_casual,
+weekday
+ORDER BY
+ride_count desc,
+member_casual
+```
+
+```sql
+/* analyze the distribution of rides in hour in weekday */ 
+WITH TotalRideCounts AS (
+    SELECT
+        member_casual,
+        COUNT(*) AS total_ride_count
+    FROM [dbo].[CombinedTripData]
+    WHERE member_casual = 'casual'
+    GROUP BY member_casual
+)
+
+SELECT
+    'casual' AS rider_type,
+    c.weekday AS ride_start_weekday,
+    COUNT(*) AS ride_count,
+    (COUNT(*) * 100.0 / t.total_ride_count) AS ride_percentage
+FROM [dbo].[CombinedTripData] c
+JOIN TotalRideCounts t ON c.member_casual = t.member_casual
+WHERE c.member_casual = 'casual'
+GROUP BY
+    c.weekday,
+    t.total_ride_count
+ORDER BY
+    ride_count DESC,
+    ride_start_weekday;
+```
+
+```sql
+/* select the most common station*/
+SELECT top 20
+start_station_id AS station_id,
+COUNT(*) AS member_start_count
+FROM [dbo].[CombinedTripData]
+WHERE member_casual = 'member'
+GROUP BY start_station_id
+ORDER BY member_start_count DESC
+```
+
+```sql
+/*calculate the diffrence in bike preferance*/
+WITH MemberRideCounts AS (
+SELECT
+member_casual,
+rideable_type,
+COUNT(*) AS ride_count
+FROM [dbo].[CombinedTripData]
+/*WHERE member_casual = 'member'/'casual'*/
+GROUP BY member_casual, rideable_type)
+SELECT
+MRC.member_casual,
+MRC.rideable_type,
+MRC.ride_count,
+(MRC.ride_count * 100.0 / SUM(MRC.ride_count) OVER (PARTITION BY MRC.member_casual)) AS percentage
+FROM MemberRideCounts AS MRC
+ORDER BY MRC.member_casual DESC, MRC.ride_count DESC;
+```
